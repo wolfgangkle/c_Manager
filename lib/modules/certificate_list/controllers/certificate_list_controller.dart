@@ -1,0 +1,2 @@
+// controller placeholder
+class CertificateListController {}
