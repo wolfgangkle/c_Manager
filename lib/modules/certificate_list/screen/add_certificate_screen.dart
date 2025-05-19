@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:hive/hive.dart';
+import 'package:c_manager/modules/sync/certificate.dart';
 
 class AddCertificateScreen extends StatefulWidget {
   const AddCertificateScreen({super.key});
@@ -44,14 +46,20 @@ class _AddCertificateScreenState extends State<AddCertificateScreen> {
     }
   }
 
-  void _save() {
+  void _save() async {
     if (_nameController.text.isNotEmpty && _expirationDate != null) {
-      Navigator.pop(context, {
-        'name': _nameController.text,
-        'expiry': _expirationDate!.toIso8601String(),
-        'notifications': _notificationsEnabled,
-        'image': _imageFile?.path,
-      });
+      final box = Hive.box<Certificate>('certificates');
+
+      final cert = Certificate(
+        title: _nameController.text,
+        expiry: _expirationDate!,
+        filePath: _imageFile?.path ?? '',
+        tags: ['General'], // You can change this
+        notifications: _notificationsEnabled,
+      );
+
+      await box.add(cert);
+      Navigator.pop(context);
     }
   }
 

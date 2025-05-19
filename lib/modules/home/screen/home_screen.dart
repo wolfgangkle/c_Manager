@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:c_manager/modules/sync/certificate.dart';
 import 'package:c_manager/modules/certificate_list/widgets/certificate_list_item.dart';
 import 'package:c_manager/modules/certificate_list/widgets/empty_state_view.dart';
 import 'package:c_manager/modules/certificate_list/screen/add_certificate_screen.dart';
@@ -15,22 +17,23 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchQuery = '';
   bool _editMode = false;
 
-  final List<Map<String, dynamic>> _allCertificates = [];
+  late Box<Certificate> _certBox;
 
-  List<Map<String, dynamic>> get _filteredCertificates {
-    if (_searchQuery.isEmpty) return _allCertificates;
-    return _allCertificates.where((cert) {
-      final title = (cert['title'] as String).toLowerCase();
-      final tags = (cert['tags'] as List<String>).join(' ').toLowerCase();
+  List<Certificate> get _filteredCertificates {
+    final all = _certBox.values.toList();
+    if (_searchQuery.isEmpty) return all;
+    return all.where((cert) {
+      final title = cert.title.toLowerCase();
+      final tags = cert.tags.join(' ').toLowerCase();
       return title.contains(_searchQuery.toLowerCase()) ||
           tags.contains(_searchQuery.toLowerCase());
     }).toList();
   }
 
-  int _calculateRemainingDays(String isoDate) {
-    final expiryDate = DateTime.parse(isoDate);
-    final now = DateTime.now();
-    return expiryDate.difference(now).inDays;
+  @override
+  void initState() {
+    super.initState();
+    _certBox = Hive.box<Certificate>('certificates');
   }
 
   @override
@@ -70,17 +73,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => const AddCertificateScreen()),
+                    builder: (context) => const AddCertificateScreen(),
+                  ),
                 );
 
-                if (result != null && result is Map<String, dynamic>) {
-                  setState(() {
-                    _allCertificates.add({
-                      'title': result['name'],
-                      'tags': ['General'], // Temporary default tags
-                      'days': _calculateRemainingDays(result['expiry']),
-                    });
-                  });
+                if (result != null && result is Certificate) {
+                  await _certBox.add(result);
+                  setState(() {});
                 }
               }),
               _buildTinyIcon(Icons.label, 'Tags', () {
@@ -111,17 +110,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   (context, index) {
                 final cert = _filteredCertificates[index];
                 return CertificateListItem(
-                  title: cert['title'] as String,
-                  tags: List<String>.from(cert['tags']),
-                  daysRemaining: cert['days'] as int,
+                  title: cert.title,
+                  tags: cert.tags,
+                  daysRemaining: cert.expiry.difference(DateTime.now()).inDays,
                 );
               },
               childCount: _filteredCertificates.length,
             ),
           )
-              : SliverFillRemaining(
+              : const SliverFillRemaining(
             hasScrollBody: false,
-            child: const EmptyStateView(
+            child: EmptyStateView(
               title: 'No certificates yet',
               subtitle: 'Tap + to add your first certificate.',
             ),
@@ -164,8 +163,7 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
           prefixIcon: const Icon(Icons.search),
           filled: true,
           fillColor: Colors.grey.shade200,
-          contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -182,6 +180,5 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
   double get minExtent => 80;
 
   @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
-      true;
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => true;
 }
