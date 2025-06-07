@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'modules/home/screen/home_screen.dart';
-import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'modules/sync/certificate.dart';
 
