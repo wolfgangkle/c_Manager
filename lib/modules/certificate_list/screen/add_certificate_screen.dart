@@ -1,12 +1,19 @@
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:hive/hive.dart';
 import 'package:c_manager/modules/sync/certificate.dart';
 
 class AddCertificateScreen extends StatefulWidget {
-  const AddCertificateScreen({super.key});
+  final Certificate? existingCertificate;
+  final dynamic certificateKey; // Hive key for editing
+
+  const AddCertificateScreen({
+    super.key,
+    this.existingCertificate,
+    this.certificateKey,
+  });
 
   @override
   State<AddCertificateScreen> createState() => _AddCertificateScreenState();
@@ -25,19 +32,31 @@ class _AddCertificateScreenState extends State<AddCertificateScreen> {
     return _expirationDate!.difference(DateTime.now()).inDays;
   }
 
+  @override
+  void initState() {
+    super.initState();
+    final cert = widget.existingCertificate;
+    if (cert != null) {
+      _nameController.text = cert.title;
+      _expirationDate = cert.expiry;
+      _notificationsEnabled = cert.notifications;
+      if (cert.filePath.isNotEmpty) {
+        _imageFile = File(cert.filePath);
+      }
+    }
+  }
+
   Future<void> _pickImage() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked != null) {
-      setState(() {
-        _imageFile = File(picked.path);
-      });
+      setState(() => _imageFile = File(picked.path));
     }
   }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _expirationDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
@@ -46,20 +65,25 @@ class _AddCertificateScreenState extends State<AddCertificateScreen> {
     }
   }
 
-  void _save() async {
+  Future<void> _save() async {
     if (_nameController.text.isNotEmpty && _expirationDate != null) {
-      final box = Hive.box<Certificate>('certificates');
-
       final cert = Certificate(
         title: _nameController.text,
         expiry: _expirationDate!,
         filePath: _imageFile?.path ?? '',
-        tags: ['General'], // You can change this
+        tags: ['General'],
         notifications: _notificationsEnabled,
       );
 
-      await box.add(cert);
-      Navigator.pop(context);
+      final certBox = Hive.box<Certificate>('certificates');
+
+      if (widget.certificateKey != null) {
+        await certBox.put(widget.certificateKey, cert); // ✅ Overwrite existing
+      } else {
+        await certBox.add(cert); // 🆕 Add new certificate
+      }
+
+      Navigator.pop(context, cert);
     }
   }
 
@@ -67,7 +91,7 @@ class _AddCertificateScreenState extends State<AddCertificateScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Certificate'),
+        title: Text(widget.existingCertificate != null ? 'Edit Certificate' : 'Add Certificate'),
         actions: [
           TextButton(
             onPressed: _save,

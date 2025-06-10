@@ -4,6 +4,7 @@ import 'package:c_manager/modules/sync/certificate.dart';
 import 'package:c_manager/modules/certificate_list/widgets/certificate_list_item.dart';
 import 'package:c_manager/modules/certificate_list/widgets/empty_state_view.dart';
 import 'package:c_manager/modules/certificate_list/screen/add_certificate_screen.dart';
+import 'package:c_manager/modules/certificate_list/screen/certificate_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,10 +20,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late Box<Certificate> _certBox;
 
-  List<Certificate> get _filteredCertificates {
-    final all = _certBox.values.toList();
+  List<MapEntry<dynamic, Certificate>> get _filteredCertificates {
+    final all = _certBox.toMap().entries.toList();
     if (_searchQuery.isEmpty) return all;
-    return all.where((cert) {
+    return all.where((entry) {
+      final cert = entry.value;
       final title = cert.title.toLowerCase();
       final tags = cert.tags.join(' ').toLowerCase();
       return title.contains(_searchQuery.toLowerCase()) ||
@@ -94,7 +96,6 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 8),
             ].reversed.toList(),
           ),
-
           SliverPersistentHeader(
             pinned: true,
             floating: true,
@@ -103,16 +104,33 @@ class _HomeScreenState extends State<HomeScreen> {
               onChanged: (value) => setState(() => _searchQuery = value),
             ),
           ),
-
           hasCertificates
               ? SliverList(
             delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                final cert = _filteredCertificates[index];
-                return CertificateListItem(
-                  title: cert.title,
-                  tags: cert.tags,
-                  daysRemaining: cert.expiry.difference(DateTime.now()).inDays,
+                final entry = _filteredCertificates[index];
+                final cert = entry.value;
+                final certKey = entry.key;
+
+                return GestureDetector(
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CertificateDetailScreen(
+                          certificate: cert,
+                          certificateKey: certKey,
+                        ),
+                      ),
+                    );
+                    setState(() {}); // Refresh after potential edit
+                  },
+                  child: CertificateListItem(
+                    title: cert.title,
+                    tags: cert.tags,
+                    daysRemaining:
+                    cert.expiry.difference(DateTime.now()).inDays,
+                  ),
                 );
               },
               childCount: _filteredCertificates.length,
