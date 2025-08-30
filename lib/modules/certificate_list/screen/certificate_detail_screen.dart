@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:c_manager/modules/sync/certificate.dart';
-import 'package:c_manager/modules/certificate_list/screen/add_certificate_screen.dart';
+import 'package:c_manager/modules/certificate_list/screen/edit_certificate_screen.dart';
 
 class CertificateDetailScreen extends StatefulWidget {
   final Certificate certificate;
-  final dynamic certificateKey; // Hive key
+  final dynamic certificateKey;
 
   const CertificateDetailScreen({
     super.key,
@@ -27,6 +28,14 @@ class _CertificateDetailScreenState extends State<CertificateDetailScreen> {
     _certificate = widget.certificate;
   }
 
+  Future<void> _refreshCertificate() async {
+    final box = await Hive.openBox<Certificate>('certificates');
+    final updated = box.get(widget.certificateKey);
+    if (updated != null) {
+      setState(() => _certificate = updated);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('d MMM yyyy');
@@ -38,21 +47,23 @@ class _CertificateDetailScreenState extends State<CertificateDetailScreen> {
         title: Text(_certificate.title),
         actions: [
           IconButton(
-      icon: const Icon(Icons.edit),
-      tooltip: 'Edit',
+            icon: const Icon(Icons.edit),
+            tooltip: 'Edit',
             onPressed: () async {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => AddCertificateScreen(
-                    existingCertificate: widget.certificate,
+                  builder: (_) => EditCertificateScreen(
+                    certificate: _certificate,
                     certificateKey: widget.certificateKey,
                   ),
                 ),
               );
-              Navigator.pop(context); // Return to HomeScreen after editing
+              if (context.mounted) {
+                await _refreshCertificate();
+              }
             },
-            ),
+          ),
         ],
       ),
       body: ListView(

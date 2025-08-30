@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:c_manager/modules/certificate_list/widgets/certificate_list_item.dart';
-import 'package:c_manager/modules/certificate_list/widgets/empty_state_view.dart';
-
+import 'package:hive/hive.dart';
+import '../../../sync/certificate.dart'; // ✅ Fixed import path
+import '../widgets/certificate_list_item.dart';
+import '../widgets/empty_state_view.dart';
+import 'add_certificate_screen.dart';
+import 'certificate_detail_screen.dart';
 
 class CertificateListScreen extends StatefulWidget {
   const CertificateListScreen({super.key});
@@ -13,17 +16,28 @@ class CertificateListScreen extends StatefulWidget {
 class _CertificateListScreenState extends State<CertificateListScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  late Box<Certificate> _certificateBox;
 
-  // This list can be empty to test the empty state
-  final List<Map<String, dynamic>> _allCertificates = [
-    // Example data here (or leave it empty to test)
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _openBox();
+  }
 
-  List<Map<String, dynamic>> get _filteredCertificates {
-    if (_searchQuery.isEmpty) return _allCertificates;
-    return _allCertificates.where((cert) {
-      final title = (cert['title'] as String).toLowerCase();
-      final tags = (cert['tags'] as List<String>).join(' ').toLowerCase();
+  Future<void> _openBox() async {
+    _certificateBox = await Hive.openBox<Certificate>('certificates');
+    setState(() {});
+  }
+
+  List<MapEntry<dynamic, Certificate>> get _filteredCertificates {
+    final all = _certificateBox.toMap().entries.toList();
+
+    if (_searchQuery.isEmpty) return all;
+
+    return all.where((entry) {
+      final cert = entry.value;
+      final title = cert.title.toLowerCase();
+      final tags = cert.tags.join(' ').toLowerCase();
       return title.contains(_searchQuery.toLowerCase()) ||
           tags.contains(_searchQuery.toLowerCase());
     }).toList();
@@ -31,14 +45,13 @@ class _CertificateListScreenState extends State<CertificateListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isEmpty = _filteredCertificates.isEmpty;
+    final isEmpty = _certificateBox.isOpen && _filteredCertificates.isEmpty;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Your Certificates'),
-      ),
+      appBar: AppBar(title: const Text('Your Certificates')),
       body: Column(
         children: [
+          // 🔍 Search Field
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
@@ -57,31 +70,49 @@ class _CertificateListScreenState extends State<CertificateListScreen> {
               ),
             ),
           ),
+
+          // 📋 Certificate List or Empty State
           Expanded(
-            child: isEmpty
+            child: !_certificateBox.isOpen
+                ? const Center(child: CircularProgressIndicator())
+                : isEmpty
                 ? const EmptyStateView(
               title: 'No certificates found',
               subtitle: 'Add a certificate using the + button below',
             )
-
                 : ListView.builder(
               itemCount: _filteredCertificates.length,
               itemBuilder: (context, index) {
-                final cert = _filteredCertificates[index];
+                final entry = _filteredCertificates[index];
                 return CertificateListItem(
-                  title: cert['title'] as String,
-                  tags: List<String>.from(cert['tags']),
-                  daysRemaining: cert['days'] as int,
+                  certificate: entry.value,
+                  certificateKey: entry.key,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CertificateDetailScreen(
+                          certificate: entry.value,
+                          certificateKey: entry.key,
+                        ),
+                      ),
+                    ).then((_) => setState(() {})); // Refresh on return
+                  },
                 );
               },
             ),
           ),
         ],
       ),
+
+      // ➕ Add Button
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Add Certificate',
-        onPressed: () {
-          // TODO: Navigate to AddCertificate screen
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AddCertificateScreen()),
+          );
+          setState(() {}); // Refresh list after add
         },
         child: const Icon(Icons.add),
       ),

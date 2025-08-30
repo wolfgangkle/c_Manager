@@ -19,11 +19,15 @@ class Certificate extends HiveObject {
   @HiveField(4)
   bool notifications;
 
+  @HiveField(5) // ✅ Add a new Hive field index
+  String issuer;
+
   Certificate({
     required this.title,
     required this.expiry,
     required this.filePath,
     required this.tags,
     required this.notifications,
+    required this.issuer, // ✅ Include in constructor
   });
 }
